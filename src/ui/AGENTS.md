@@ -11,15 +11,21 @@ usecases. REST and MCP share the `rest` process and device manager.
   outside it. Pass `whatsapp.ContextWithDevice(c.Context(), getDeviceFromCtx(c))`
   to device-bound usecases. Browser websockets select a device with `?device_id=`.
 - Route/auth order lives in `../cmd/rest.go`. Chatwoot webhooks are mounted before
-  Basic Auth but enforce `CHATWOOT_WEBHOOK_SECRET` when configured. Keep manual
+  Basic Auth and reject calls when the effective secret is empty, unless
+  `CHATWOOT_WEBHOOK_ALLOW_UNSIGNED` is set. A device config's own
+  `webhook_secret` replaces it for that device on both endpoints: call
+  `chatwootWebhookRouteGate` with the final route before acting on a webhook. Mount
+  `ChatwootWebhookReplayGuard` in front of the webhook routes: it remembers a signed
+  request only once the whole handler chain answered 2xx, so answer non-2xx for a
+  delivery that must be sent again. Keep manual
   sync/config routes authenticated and preserve webhook device routing and echo guards.
   New public routes need an explicit public contract, such as a health check or webhook.
 
 ## MCP
 
 - `mcp/<domain>.go` defines tools/handlers and registers them via `Add*Tools`.
-  The consolidated `whatsapp_send`, `whatsapp_message`, `whatsapp_chat`,
-  `whatsapp_group`, and `whatsapp_app` tools dispatch on `type` or `action`.
+  The consolidated `whatsapp_send`, `whatsapp_schedule`, `whatsapp_message`,
+  `whatsapp_chat`, `whatsapp_group`, and `whatsapp_app` tools dispatch on `type` or `action`.
   MCP send arguments cover a subset of REST DTOs; validate types and preserve result formats.
 - Resolve device-bound calls with `resolveDeviceContext` in `mcp/device.go`:
   explicit `device_id` overrides the device injected by `mcp/route.go` from
